@@ -222,3 +222,64 @@
         (ok true)
     )
 )
+
+(define-public (vote-on-dispute (job-id uint) (vote-release bool))
+    (let
+        (
+            (dispute (unwrap! (map-get? disputes { job-id: job-id }) (err u404)))
+        )
+        (asserts! (not (get resolved dispute)) ERR-INVALID-STATUS)
+
+        (map-set disputes
+            { job-id: job-id }
+            (merge dispute {
+                votes-release: (if vote-release (+ (get votes-release dispute) u1) (get votes-release dispute)),
+                votes-refund: (if (not vote-release) (+ (get votes-refund dispute) u1) (get votes-refund dispute))
+            })
+        )
+        (ok true)
+    )
+)
+
+;; Rating System Functions
+
+(define-public (rate-user (user principal) (rating uint))
+    (let
+        (
+            (current-rating (default-to
+                { total-rating: u0, number-of-ratings: u0, average-rating: u0 }
+                (map-get? user-ratings { user: user })
+            ))
+        )
+        (asserts! (and (>= rating u1) (<= rating u5)) (err u106))
+
+        (map-set user-ratings
+            { user: user }
+            {
+                total-rating: (+ (get total-rating current-rating) rating),
+                number-of-ratings: (+ (get number-of-ratings current-rating) u1),
+                average-rating: (/ (+ (get total-rating current-rating) rating)
+                                 (+ (get number-of-ratings current-rating) u1))
+            }
+        )
+        (ok true)
+    )
+)
+
+;; Read-only Functions
+
+(define-read-only (get-job-details (job-id uint))
+    (map-get? jobs { job-id: job-id })
+)
+
+(define-read-only (get-user-rating (user principal))
+    (map-get? user-ratings { user: user })
+)
+
+(define-read-only (get-bids-for-job (job-id uint))
+    (map-get? bids { job-id: job-id })
+)
+
+(define-read-only (get-dispute-details (job-id uint))
+    (map-get? disputes { job-id: job-id })
+)
