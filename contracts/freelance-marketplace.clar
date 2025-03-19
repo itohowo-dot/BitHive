@@ -129,3 +129,65 @@
         (ok true)
     )
 )
+
+(define-public (accept-bid (job-id uint) (freelancer principal))
+    (let
+        (
+            (job (unwrap! (map-get? jobs { job-id: job-id }) (err u404)))
+            (bid (unwrap! (map-get? bids { job-id: job-id, bidder: freelancer }) (err u404)))
+        )
+        (asserts! (is-eq tx-sender (get client job)) ERR-NOT-AUTHORIZED)
+        (asserts! (is-eq (get status job) "open") ERR-INVALID-STATUS)
+
+        (map-set jobs
+            { job-id: job-id }
+            (merge job {
+                status: "in-progress",
+                freelancer: (some freelancer)
+            })
+        )
+        (map-set bids
+            { job-id: job-id, bidder: freelancer }
+            (merge bid { status: "accepted" })
+        )
+        (ok true)
+    )
+)
+
+;; Milestone and Payment Functions
+
+(define-public (complete-milestone (job-id uint))
+    (let
+        (
+            (job (unwrap! (map-get? jobs { job-id: job-id }) (err u404)))
+            (escrow-data (unwrap! (map-get? escrow { job-id: job-id }) (err u404)))
+            (milestone-amount (unwrap! (element-at (get milestones job) (get current-milestone job)) (err u404)))
+        )
+        (asserts! (is-eq tx-sender (get client job)) ERR-NOT-AUTHORIZED)
+        (asserts! (is-eq (get status job) "in-progress") ERR-INVALID-STATUS)
+
+        ;; Release milestone payment to freelancer
+        (try! (as-contract (stx-transfer? milestone-amount tx-sender (unwrap! (get freelancer job) ERR-NOT-AUTHORIZED))))
+
+        ;; Update job state
+        (map-set jobs
+            { job-id: job-id }
+            (merge job {
+                current-milestone: (+ (get current-milestone job) u1)
+            })
+        )
+
+        ;; Check if this was the last milestone
+        (if (is-eq (+ (get current-milestone job) u1) (len (get milestones job)))
+            (map-set jobs
+                { job-id: job-id }
+                (merge job {
+                    status: "completed",
+                    current-milestone: (+ (get current-milestone job) u1)
+                })
+            )
+            true
+        )
+        (ok true)
+    )
+)
