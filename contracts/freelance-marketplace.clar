@@ -39,3 +39,40 @@
 		current-milestone: uint
 	}
 )
+
+(define-map bids
+    { job-id: uint, bidder: principal }
+    {
+        amount: uint,
+        proposal: (string-utf8 500),
+        status: (string-utf8 20)
+    }
+)
+
+(define-map user-ratings
+    { user: principal }
+    {
+        total-rating: uint,
+        number-of-ratings: uint,
+        average-rating: uint
+    }
+)
+
+(define-map disputes
+    { job-id: uint }
+    {
+        initiator: principal,
+        reason: (string-utf8 500),
+        votes-release: uint,
+        votes-refund: uint,
+        resolved: bool
+    }
+)
+
+(define-map escrow
+    { job-id: uint }
+    {
+        amount: uint,
+        locked: bool
+    }
+)
