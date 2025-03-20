@@ -21,6 +21,7 @@
 (define-constant ERR-INSUFFICIENT-FUNDS (err u103))
 (define-constant ERR-ALREADY-BIDDED (err u104))
 (define-constant ERR-DISPUTE-EXISTS (err u105))
+(define-constant ERR-TOO-MANY-BIDDERS (err u107))
 
 ;; Data Variables
 (define-data-var job-counter uint u0)
@@ -47,6 +48,11 @@
         proposal: (string-ascii 500),
         status: (string-ascii 20)
     }
+)
+
+(define-map job-bidders
+    { job-id: uint }
+    { bidders: (list 100 principal) }
 )
 
 (define-map user-ratings
@@ -106,6 +112,11 @@
                 locked: true
             }
         )
+        ;; Initialize empty bidders list for this job
+        (map-set job-bidders
+            { job-id: job-id }
+            { bidders: (list) }
+        )
         (ok job-id)
     )
 )
@@ -114,9 +125,12 @@
     (let
         (
             (job (unwrap! (map-get? jobs { job-id: job-id }) (err u404)))
+            (current-bidders (default-to { bidders: (list) } (map-get? job-bidders { job-id: job-id })))
         )
         (asserts! (is-eq (get status job) "open") ERR-INVALID-STATUS)
         (asserts! (is-none (map-get? bids { job-id: job-id, bidder: tx-sender })) ERR-ALREADY-BIDDED)
+        ;; Check if we're at capacity for bidders
+        (asserts! (< (len (get bidders current-bidders)) u100) ERR-TOO-MANY-BIDDERS)
 
         (map-set bids
             { job-id: job-id, bidder: tx-sender }
@@ -125,6 +139,12 @@
                 proposal: proposal,
                 status: "pending"
             }
+        )
+        
+        ;; Add bidder to the job's bidders list
+        (map-set job-bidders
+            { job-id: job-id }
+            { bidders: (unwrap! (as-max-len? (append (get bidders current-bidders) tx-sender) u100) ERR-TOO-MANY-BIDDERS) }
         )
         (ok true)
     )
@@ -291,8 +311,12 @@
     (map-get? user-ratings { user: user })
 )
 
-(define-read-only (get-bids-for-job (job-id uint))
-    (map-get? bids { job-id: job-id })
+(define-read-only (get-bid (job-id uint) (bidder principal))
+    (map-get? bids { job-id: job-id, bidder: bidder })
+)
+
+(define-read-only (get-job-bidders (job-id uint))
+    (default-to { bidders: (list) } (map-get? job-bidders { job-id: job-id }))
 )
 
 (define-read-only (get-dispute-details (job-id uint))
