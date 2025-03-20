@@ -30,10 +30,10 @@
 	{ job-id: uint }
 	{
 		client: principal,
-		title: (string-utf8 100),
-		description: (string-utf8 500),
+        title: (string-ascii 100),
+        description: (string-ascii 500),
 		budget: uint,
-		status: (string-utf8 20),
+        status: (string-ascii 20),
 		freelancer: (optional principal),
 		milestones: (list 10 uint),
 		current-milestone: uint
@@ -44,8 +44,8 @@
     { job-id: uint, bidder: principal }
     {
         amount: uint,
-        proposal: (string-utf8 500),
-        status: (string-utf8 20)
+        proposal: (string-ascii 500),
+        status: (string-ascii 20)
     }
 )
 
@@ -62,7 +62,7 @@
     { job-id: uint }
     {
         initiator: principal,
-        reason: (string-utf8 500),
+        reason: (string-ascii 500),
         votes-release: uint,
         votes-refund: uint,
         resolved: bool
@@ -79,7 +79,7 @@
 
 ;; Job Management Functions
 
-(define-public (post-job (title (string-utf8 100)) (description (string-utf8 500)) (budget uint) (milestones (list 10 uint)))
+(define-public (post-job (title (string-ascii 100)) (description (string-ascii 500)) (budget uint) (milestones (list 10 uint)))
     (let
         (
             (job-id (+ (var-get job-counter) u1))
@@ -110,7 +110,7 @@
     )
 )
 
-(define-public (place-bid (job-id uint) (amount uint) (proposal (string-utf8 500)))
+(define-public (place-bid (job-id uint) (amount uint) (proposal (string-ascii 500)))
     (let
         (
             (job (unwrap! (map-get? jobs { job-id: job-id }) (err u404)))
@@ -180,11 +180,17 @@
         ;; Check if this was the last milestone
         (if (is-eq (+ (get current-milestone job) u1) (len (get milestones job)))
             (map-set jobs
-                { job-id: job-id }
-                (merge job {
-                    status: "completed",
-                    current-milestone: (+ (get current-milestone job) u1)
-                })
+    			{ job-id: job-id }
+    			{			
+        			client: (get client job),
+        			title: (get title job),
+        			description: (get description job),
+        			budget: (get budget job),
+        			status: "completed",
+        			freelancer: (get freelancer job),
+        			milestones: (get milestones job),
+				    current-milestone: (+ (get current-milestone job) u1)
+    			}
             )
             true
         )
@@ -194,7 +200,7 @@
 
 ;; Dispute Resolution Functions
 
-(define-public (raise-dispute (job-id uint) (reason (string-utf8 500)))
+(define-public (raise-dispute (job-id uint) (reason (string-ascii 500)))
     (let
         (
             (job (unwrap! (map-get? jobs { job-id: job-id }) (err u404)))
@@ -216,9 +222,18 @@
             }
         )
         (map-set jobs
-            { job-id: job-id }
-            (merge job { status: "disputed" })
-        )
+    		{ job-id: job-id }
+    		{
+        		client: (get client job),
+        		title: (get title job),
+        		description: (get description job),
+        		budget: (get budget job),
+        		status: "disputed",
+        		freelancer: (get freelancer job),
+        		milestones: (get milestones job),
+        		current-milestone: (get current-milestone job)
+    		}
+		)
         (ok true)
     )
 )
